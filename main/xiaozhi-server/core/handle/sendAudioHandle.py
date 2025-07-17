@@ -48,6 +48,7 @@ async def sendAudioMessage(conn, sentenceType, audios, text):
                 }
             )
         )
+    # 首句预缓冲处理 @jophone
     pre_buffer = False
     if conn.tts.tts_audio_first_sentence and text is not None:
         conn.logger.bind(tag=TAG).info(f"发送第一段语音: {text}")
@@ -114,6 +115,7 @@ async def send_tts_message(conn, state, text=None):
 
     # TTS播放结束
     if state == "stop":
+        # 默认不播放结束提示音 @jophone
         # 播放提示音
         tts_notify = conn.config.get("enable_stop_tts_notify", False)
         if tts_notify:
@@ -130,6 +132,7 @@ async def send_tts_message(conn, state, text=None):
 
 
 async def send_stt_message(conn, text):
+    # 发送 语音识别结果消息 @jophone
     end_prompt_str = conn.config.get("end_prompt", {}).get("prompt")
     if end_prompt_str and end_prompt_str == text:
         await send_tts_message(conn, "start")
@@ -154,5 +157,6 @@ async def send_stt_message(conn, text):
     await conn.websocket.send(
         json.dumps({"type": "stt", "text": stt_text, "session_id": conn.session_id})
     )
+    # 语音识别结束后，设置客户端说话状态为True，并发送 TTS开始消息 @jophone
     conn.client_is_speaking = True
     await send_tts_message(conn, "start")

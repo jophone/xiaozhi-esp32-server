@@ -60,16 +60,59 @@ class ASRProviderBase(ABC):
 
     # 接收音频
     async def receive_audio(self, conn, audio, audio_have_voice):
+        """
+        接收并处理音频数据，实现语音活动检测和音频缓冲管理
+        
+        该函数是ASR音频处理管道的核心入口，负责：
+        1. 根据客户端监听模式决定语音检测策略
+        2. 管理音频缓冲区，防止内存无限增长
+        3. 检测语音结束并触发ASR识别处理
+        
+        Args:
+            conn: 连接对象，包含客户端状态、配置和音频缓冲区
+                - conn.client_listen_mode: 监听模式 ("auto"/"realtime"/其他)
+                - conn.client_have_voice: 客户端报告的语音状态
+                - conn.asr_audio: 音频数据缓冲区 (List[bytes])
+                - conn.client_voice_stop: 语音结束标志
+            audio (bytes): 当前接收到的音频数据片段
+            audio_have_voice (bool): VAD检测到的当前音频片段是否包含语音
+            
+        Returns:
+            None
+            
+        处理逻辑：
+        1. 语音检测模式判断：
+           - "auto"/"realtime"模式：使用VAD检测结果 (audio_have_voice)
+           - 其他模式：使用conn.client_have_voice
+           
+        2. 音频缓冲管理：
+           - 始终将音频数据添加到缓冲区
+           - 无语音时：仅保留最后10个音频片段，防止内存积累
+           - 有语音时：持续积累音频数据
+           
+        3. 语音结束处理：
+           - 检测到语音结束时复制完整音频数据
+           - 清空缓冲区并重置VAD状态
+           - 音频片段数量>15时触发ASR识别
+           
+        性能特点：
+        - 异步非阻塞处理，支持多连接并发
+        - 内存优化：静默期间限制缓冲区大小
+        - 质量过滤：忽略过短的音频片段
+        """
         if conn.client_listen_mode == "auto" or conn.client_listen_mode == "realtime":
             have_voice = audio_have_voice
         else:
             have_voice = conn.client_have_voice
         
+        # 将音频数据添加到ASR缓冲区 @jophone
         conn.asr_audio.append(audio)
+        # 如果没有语音，并且客户端也没有语音，则仅保留最后10个音频片段 @jophone
         if not have_voice and not conn.client_have_voice:
             conn.asr_audio = conn.asr_audio[-10:]
             return
 
+        # 如果客户端报告语音结束，则复制完整音频数据，清空缓冲区，并重置VAD状态，音频片段数量>15时触发ASR识别和声纹识别 @jophone
         if conn.client_voice_stop:
             asr_audio_task = conn.asr_audio.copy()
             conn.asr_audio.clear()

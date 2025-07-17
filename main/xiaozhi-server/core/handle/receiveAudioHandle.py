@@ -43,6 +43,7 @@ async def startToChat(conn, text):
     speaker_name = None
     actual_text = text
     
+    # 如果为json格式则尝试提取说话人信息（需要搭配 声纹识别 功能） @jophone
     try:
         # 尝试解析JSON格式的输入
         if text.strip().startswith('{') and text.strip().endswith('}'):
@@ -75,6 +76,7 @@ async def startToChat(conn, text):
         ):
             await max_out_size(conn)
             return
+    # 如果用户当前正在说话，服务端先发送打断消息 @jophone
     if conn.client_is_speaking:
         await handleAbortMessage(conn)
 

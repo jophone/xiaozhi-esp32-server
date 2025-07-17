@@ -52,6 +52,7 @@ class WakeupWordsConfig:
             self._config_cache is not None
             and current_time - self._last_load_time < self._cache_ttl
         ):
+            print("成功获取缓存的唤醒词配置")
             return self._config_cache
 
         try:
@@ -62,6 +63,7 @@ class WakeupWordsConfig:
                     config = yaml.safe_load(content) if content else {}
                     self._config_cache = config
                     self._last_load_time = current_time
+                    print("成功加载唤醒词配置")
                     return config
         except (TimeoutError, IOError) as e:
             print(f"加载配置文件失败: {e}")
@@ -78,6 +80,7 @@ class WakeupWordsConfig:
                     yaml.dump(config, f, allow_unicode=True)
                     self._config_cache = config
                     self._last_load_time = time.time()
+                    print("成功保存唤醒词配置")
         except (TimeoutError, IOError) as e:
             print(f"保存配置文件失败: {e}")
             raise
@@ -96,6 +99,7 @@ class WakeupWordsConfig:
         # 检查文件大小
         file_path = config[voice]["file_path"]
         if not os.path.exists(file_path) or os.stat(file_path).st_size < (15 * 1024):
+            print(f"唤醒词回复音频文件不存在，或者该文件大小小于15KB: {file_path}")
             return None
 
         return config[voice]

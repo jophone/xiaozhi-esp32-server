@@ -14,6 +14,7 @@ class WebSocketServer:
         self.config = config
         self.logger = setup_logging()
         self.config_lock = asyncio.Lock()
+        # 打印信息：建立WebSocketServer时进行首次初始化，初始化VAD、ASR @jophone
         modules = initialize_modules(
             self.logger,
             self.config,
@@ -37,6 +38,7 @@ class WebSocketServer:
         host = server_config.get("ip", "0.0.0.0")
         port = int(server_config.get("port", 8000))
 
+        # 使用websockets.serve()创建WebSocket服务器，self._handle_connection作为回调函数，每当有新连接时都会被调用；asyncio.Future()让服务器持续运行，不会退出 @jophone
         async with websockets.serve(
             self._handle_connection, host, port, process_request=self._http_response
         ):

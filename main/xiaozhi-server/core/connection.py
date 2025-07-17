@@ -181,6 +181,10 @@ class ConnectionHandler:
                     return
             # 获取客户端ip地址
             self.client_ip = ws.remote_address[0]
+            # 1.打印信息 @jophone
+            self.logger.bind(tag=TAG).info(
+                f"正在建立新连接: {self.client_ip}, 设备ID: {self.headers.get('device-id')}, 客户端ID: {self.headers.get('client-id')}"
+            )
             self.logger.bind(tag=TAG).info(
                 f"{self.client_ip} conn - Headers: {self.headers}"
             )
@@ -204,9 +208,13 @@ class ConnectionHandler:
             # 获取差异化配置
             self._initialize_private_config()
             # 异步初始化
+            # 2.由于上一步的初始化已更新self.asr，导致无法更新声纹，_initialize_components存在bug @jophone
             self.executor.submit(self._initialize_components)
 
             try:
+                # 异步消息处理：使用async for循环处理消息 @jophone
+                # 4.新连接建立后会服务端会收到hello消息，由handleHelloMessage处理 @jophone
+                self.logger.bind(tag=TAG).info("开始循环处理消息")
                 async for message in self.websocket:
                     await self._route_message(message)
             except websockets.exceptions.ConnectionClosed:
@@ -337,6 +345,7 @@ class ConnectionHandler:
             if self.config.get("prompt") is not None:
                 user_prompt = self.config["prompt"]
                 # 使用快速提示词进行初始化
+                # 3.将智能体提示词更新到prompt_manager，并打印快速提示词 @jophone
                 prompt = self.prompt_manager.get_quick_prompt(user_prompt)
                 self.change_system_prompt(prompt)
                 self.logger.bind(tag=TAG).info(
@@ -346,6 +355,7 @@ class ConnectionHandler:
             """初始化本地组件"""
             if self.vad is None:
                 self.vad = self._vad
+            # 由于上一步的初始化已更新self.asr，导致无法更新声纹，此处存在bug @jophone
             if self.asr is None:
                 self.asr = self._initialize_asr()
             # 打开语音识别通道
@@ -359,6 +369,7 @@ class ConnectionHandler:
                 self.tts.open_audio_channels(self), self.loop
             )
 
+            # 5.打印信息 @jophone
             """加载记忆"""
             self._initialize_memory()
             """加载意图识别"""
@@ -373,6 +384,7 @@ class ConnectionHandler:
 
     def _init_prompt_enhancement(self):
         # 更新上下文信息
+        # 7.开始增强系统提示词 @jophone
         self.prompt_manager.update_context_info(self, self.client_ip)
         enhanced_prompt = self.prompt_manager.build_enhanced_prompt(
             self.config["prompt"], self.device_id, self.client_ip
@@ -380,6 +392,8 @@ class ConnectionHandler:
         if enhanced_prompt:
             self.change_system_prompt(enhanced_prompt)
             self.logger.bind(tag=TAG).info("系统提示词已增强更新")
+            # 7.打印增强后的系统提示词 @jophone
+            self.logger.bind(tag=TAG).info(f"增强后的系统提示词: {enhanced_prompt}")
 
     def _init_report_threads(self):
         """初始化ASR和TTS上报线程"""
@@ -441,6 +455,7 @@ class ConnectionHandler:
                 self.headers.get("client-id", self.headers.get("device-id")),
             )
             private_config["delete_audio"] = bool(self.config.get("delete_audio", True))
+            # 1.打印第二条 @jophone
             self.logger.bind(tag=TAG).info(
                 f"{time.time() - begin_time} 秒，获取差异化配置成功: {json.dumps(filter_sensitive_info(private_config), ensure_ascii=False)}"
             )
@@ -463,9 +478,11 @@ class ConnectionHandler:
             False,
         )
 
+        # 由于websocket服务运行时已经初始化了默认的VAD和ASR，所以此处需要检查接口中的VAD和ASR类型是否需要更新 @jophone
         init_vad = check_vad_update(self.common_config, private_config)
         init_asr = check_asr_update(self.common_config, private_config)
 
+        # 开始将差异化配置应用到当前连接的配置文件中 @jophone
         if init_vad:
             self.config["VAD"] = private_config["VAD"]
             self.config["selected_module"]["VAD"] = private_config["selected_module"][
@@ -522,6 +539,7 @@ class ConnectionHandler:
         if private_config.get("mcp_endpoint", None) is not None:
             self.config["mcp_endpoint"] = private_config["mcp_endpoint"]
         try:
+            # initialize_modules没有主动更新声纹，可能存在bug @jophone
             modules = initialize_modules(
                 self.logger,
                 private_config,
@@ -632,9 +650,11 @@ class ConnectionHandler:
                 self.intent.set_llm(self.llm)
                 self.logger.bind(tag=TAG).info("使用主LLM作为意图识别模型")
 
+        # 默认使用 function_call 模式则无需上述的处理 @jophone
         """加载统一工具处理器"""
         self.func_handler = UnifiedToolHandler(self)
 
+        # 6.打印信息：初始化各种工具 @jophone
         # 异步初始化工具处理器
         if hasattr(self, "loop") and self.loop:
             asyncio.run_coroutine_threadsafe(self.func_handler._initialize(), self.loop)

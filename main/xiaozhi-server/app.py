@@ -2,6 +2,7 @@ import sys
 import uuid
 import signal
 import asyncio
+import json
 from aioconsole import ainput
 from config.settings import load_config
 from config.logger import setup_logging
@@ -9,6 +10,7 @@ from core.utils.util import get_local_ip, validate_mcp_endpoint
 from core.http_server import SimpleHttpServer
 from core.websocket_server import WebSocketServer
 from core.utils.util import check_ffmpeg_installed
+from core.utils.util import filter_sensitive_info
 
 TAG = __name__
 logger = setup_logging()
@@ -45,6 +47,9 @@ async def monitor_stdin():
 async def main():
     check_ffmpeg_installed()
     config = load_config()
+
+    # 打印默认配置信息 @jophone
+    logger.bind(tag=TAG).info("当前配置: {}", json.dumps(filter_sensitive_info(config), ensure_ascii=False))
 
     # 默认使用manager-api的secret作为auth_key
     # 如果secret为空，则生成随机密钥

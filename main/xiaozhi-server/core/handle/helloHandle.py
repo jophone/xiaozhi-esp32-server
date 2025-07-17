@@ -62,6 +62,7 @@ async def checkWakeupWords(conn, text):
     _, filtered_text = remove_punctuation_and_length(text)
     if filtered_text not in conn.config.get("wakeup_words"):
         return False
+    conn.logger.bind(tag=TAG).info(f"识别到唤醒词: {text}")
 
     conn.just_woken_up = True
     await send_stt_message(conn, text)
@@ -74,6 +75,7 @@ async def checkWakeupWords(conn, text):
     # 获取唤醒词回复配置
     response = wakeup_words_config.get_wakeup_response(voice)
     if not response or not response.get("file_path"):
+        conn.logger.bind(tag=TAG).info("唤醒词回复配置不存在或文件路径无效，使用本地的wakeup_words.wav生成默认的唤醒词回复")
         response = {
             "voice": "default",
             "file_path": "config/assets/wakeup_words.wav",
@@ -120,12 +122,26 @@ async def wakeupWordsResponse(conn):
         result = conn.llm.response_no_stream(conn.config["prompt"], question)
         if not result or len(result) == 0:
             return
+        conn.logger.bind(tag=TAG).info(f"更新后的唤醒词回复: {result}")
 
         # 生成TTS音频
         tts_result = await asyncio.to_thread(conn.tts.to_tts, result)
         if not tts_result:
+            conn.logger.bind(tag=TAG).error("新的唤醒词回复TTS生成失败，返回空结果")
             return
 
+        # 检查 tts_result 是否是列表或元组，检查每一帧是否是 bytes 类型
+        if not isinstance(tts_result, (list, tuple)):
+            conn.logger.bind(tag=TAG).error(
+                "新的唤醒词回复TTS结果格式错误，应该是列表或元组"
+            )
+            return
+        else:
+            for i, frame in enumerate(tts_result):
+                if not isinstance(frame, bytes):
+                    conn.logger.bind(tag=TAG).error(
+                        f"新的唤醒词回复TTS结果第{i}帧格式错误，不是bytes类型，而是 {type(frame)}类型"
+                    )
         # 获取当前音色
         voice = getattr(conn.tts, "voice", "default")
 
