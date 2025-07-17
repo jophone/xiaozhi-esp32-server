@@ -175,3 +175,6 @@ uploadfile
 *.json
 .vscode
 .cursor
+
+# docker directory
+xiaozhi-server/
