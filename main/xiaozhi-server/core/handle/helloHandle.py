@@ -133,7 +133,7 @@ async def wakeupWordsResponse(conn):
         # 检查 tts_result 是否是列表或元组，检查每一帧是否是 bytes 类型
         if not isinstance(tts_result, (list, tuple)):
             conn.logger.bind(tag=TAG).error(
-                "新的唤醒词回复TTS结果格式错误，应该是列表或元组"
+                f"新的唤醒词回复TTS结果格式错误，其类型为{type(tts_result)}，应该是列表或元组"
             )
             return
         else:
